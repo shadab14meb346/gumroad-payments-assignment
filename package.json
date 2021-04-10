@@ -1,0 +1,17 @@
+{
+  "name": "gumroad-payments-assignment",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/shadab14meb346/gumroad-payments-assignment.git",
+  "author": "shadab <shadab14meb346@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "nodemon index.js"
+  },
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "mysql2": "^2.2.5",
+    "nodemon": "^2.0.7"
+  }
+}
