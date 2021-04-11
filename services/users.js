@@ -7,7 +7,6 @@ async function getAll() {
   const data = helper.emptyOrRows(result);
   return { success: true, data };
 }
-//getBalance(userId,from,to)
 async function getBalance(userId) {
   const mostRecentPayout = await db.query(
     `SELECT * FROM PAYOUTS_TABLE WHERE fk_seller_id=? ORDER BY payout_date DESC LIMIT 1`,
@@ -81,7 +80,87 @@ async function getBalance(userId) {
   }
 }
 
+async function getPayoutAmount(userId, tillDateInUTC) {
+  //if tillDateInUTC is today the netBalance and payoutAmount will be equal
+  const mostRecentPayout = await db.query(
+    `SELECT * FROM PAYOUTS_TABLE WHERE fk_seller_id=? ORDER BY payout_date DESC LIMIT 1`,
+    [userId]
+  );
+  if (!mostRecentPayout.length) {
+    const allPurchasesTillPassedDateInUTC = await db.query(
+      `SELECT id as product_id, SUM(price) FROM PRODUCTS_TABLE INNER JOIN TRANSACTIONS_TABLE ON PRODUCTS_TABLE.id = TRANSACTIONS_TABLE.fk_product_id AND TRANSACTIONS_TABLE.fk_seller_id=? AND TRANSACTIONS_TABLE.tx_type=? AND TRANSACTIONS_TABLE.created_at <= ? GROUP BY PRODUCTS_TABLE.id`,
+      [userId, TxType.PURCHASE, UTCToSQLDateTimeFormat(tillDateInUTC)]
+    );
+    const totalPurchaseAmountTillPassedDateInUTC = allPurchasesTillPassedDateInUTC.reduce(
+      (accumulator, currentValue) => {
+        return accumulator + currentValue['SUM(price)'];
+      },
+      0
+    );
+    const allRefundsTillPassedDateInUTC = await db.query(
+      `SELECT id as product_id, SUM(price) FROM PRODUCTS_TABLE INNER JOIN TRANSACTIONS_TABLE ON PRODUCTS_TABLE.id = TRANSACTIONS_TABLE.fk_product_id AND TRANSACTIONS_TABLE.fk_seller_id=? AND TRANSACTIONS_TABLE.tx_type=? AND TRANSACTIONS_TABLE.created_at <= ? GROUP BY PRODUCTS_TABLE.id`,
+      [userId, TxType.REFUND, UTCToSQLDateTimeFormat(tillDateInUTC)]
+    );
+    const totalRefundAmountTillPassedDateInUTC = allRefundsTillPassedDateInUTC.reduce(
+      (accumulator, currentValue) => {
+        return accumulator + currentValue['SUM(price)'];
+      },
+      0
+    );
+    const netPayoutAmount =
+      totalPurchaseAmountTillPassedDateInUTC -
+      totalRefundAmountTillPassedDateInUTC;
+    return {
+      success: true,
+      data: {
+        payoutAmount: netPayoutAmount,
+      },
+    };
+  } else {
+    const allPurchasesFromLastPayoutTillPassedDateInUTC = await db.query(
+      `SELECT id as product_id, SUM(price) FROM PRODUCTS_TABLE INNER JOIN TRANSACTIONS_TABLE ON PRODUCTS_TABLE.id = TRANSACTIONS_TABLE.fk_product_id AND TRANSACTIONS_TABLE.fk_seller_id=? AND TRANSACTIONS_TABLE.tx_type=? AND TRANSACTIONS_TABLE.created_at >= ?  AND TRANSACTIONS_TABLE.created_at <= ? GROUP BY PRODUCTS_TABLE.id`,
+      [
+        userId,
+        TxType.PURCHASE,
+        UTCToSQLDateTimeFormat(mostRecentPayout[0].to),
+        UTCToSQLDateTimeFormat(tillDateInUTC),
+      ]
+    );
+    const totalPurchaseAmountFromLastPayoutTillPassedDateInUTC = allPurchasesFromLastPayoutTillPassedDateInUTC.reduce(
+      (accumulator, currentValue) => {
+        return accumulator + currentValue['SUM(price)'];
+      },
+      0
+    );
+    const allRefundsFromLastPayoutTillPassedDateInUTC = await db.query(
+      `SELECT id as product_id, SUM(price) FROM PRODUCTS_TABLE INNER JOIN TRANSACTIONS_TABLE ON PRODUCTS_TABLE.id = TRANSACTIONS_TABLE.fk_product_id AND TRANSACTIONS_TABLE.fk_seller_id=? AND TRANSACTIONS_TABLE.tx_type=? AND TRANSACTIONS_TABLE.created_at >= ? AND TRANSACTIONS_TABLE.created_at <= ? GROUP BY PRODUCTS_TABLE.id`,
+      [
+        userId,
+        TxType.REFUND,
+        UTCToSQLDateTimeFormat(mostRecentPayout[0].to),
+        UTCToSQLDateTimeFormat(tillDateInUTC),
+      ]
+    );
+    const totalRefundAmountFromLastPayoutTillPassedDateInUTC = allRefundsFromLastPayoutTillPassedDateInUTC.reduce(
+      (accumulator, currentValue) => {
+        return accumulator + currentValue['SUM(price)'];
+      },
+      0
+    );
+    const netPayoutAmount =
+      totalPurchaseAmountFromLastPayoutTillPassedDateInUTC -
+      totalRefundAmountFromLastPayoutTillPassedDateInUTC;
+    return {
+      success: true,
+      data: {
+        payoutAmount: netPayoutAmount,
+      },
+    };
+  }
+}
+
 module.exports = {
   getAll,
   getBalance,
+  getPayoutAmount,
 };
