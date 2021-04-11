@@ -5,12 +5,17 @@ function emptyOrRows(rows) {
   return rows;
 }
 
-const txType = {
+const TxType = {
   PURCHASE: 'PURCHASE',
   REFUND: 'REFUND',
 };
 
+const UTCToSQLDateTimeFormat = (UTCTime) => {
+  return new Date(UTCTime).toISOString().replace(/T/, ' ').replace(/\..+/, '');
+};
+
 module.exports = {
   emptyOrRows,
-  txType,
+  TxType,
+  UTCToSQLDateTimeFormat,
 };
